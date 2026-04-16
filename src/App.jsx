@@ -2,14 +2,14 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, RefreshCw, Table, BarChart3, GraduationCap, 
   Clock, BookOpen, TrendingUp, Users, Award, 
-  Percent, Calendar, Lock, Key
+  Percent, Calendar, Lock, Key, ArrowUp, ArrowDown
 } from 'lucide-react';
 
 const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [passError, setPassError] = useState(false);
-  const CORRECT_PASSWORD = "321!"; // 👈
+  const CORRECT_PASSWORD = "321!";
   const [data, setData] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -20,7 +20,7 @@ const App = () => {
 
   const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSa-LxLhjy5tVmwaj0kssahHZJUhaqe9LMiPc5TLsbTwrmlfpc0mWq8aYXVSqtIH8KXD102VlRCPfev/pub?output=csv";
 
-  // 한국어 날짜(타임스탬프) 파싱 함수
+  // 날짜 파싱 유틸리티
   const parseKoreanDate = (dateStr) => {
     if (!dateStr) return 0;
     try {
@@ -40,6 +40,7 @@ const App = () => {
     else { setPassError(true); setPassword(''); }
   };
 
+  // CSV 파서
   const parseCSV = (text) => {
     const result = []; let row = []; let col = ""; let inQuotes = false;
     for (let i = 0; i < text.length; i++) {
@@ -79,7 +80,6 @@ const App = () => {
           return obj;
         });
 
-        // 데이터 최신순 정렬
         if (dateH) {
           dataRows.sort((a, b) => parseKoreanDate(b[dateH]) - parseKoreanDate(a[dateH]));
           setDataDate(dataRows[0][dateH]);
@@ -93,7 +93,7 @@ const App = () => {
 
   useEffect(() => { if (isAuthenticated) fetchData(); }, [isAuthenticated]);
 
-  // 주요 헤더 매핑
+  // 헤더 매핑
   const nameHeader = useMemo(() => headers.find(h => h.includes('이름')), [headers]);
   const scoreHeader = useMemo(() => headers.find(h => h.includes('성적') || h.includes('점수')), [headers]);
   const gradeHeader = useMemo(() => headers.find(h => h.includes('학년')), [headers]);
@@ -124,6 +124,7 @@ const App = () => {
     if (availableMonths.length > 0 && !selectedMonth) setSelectedMonth(availableMonths[availableMonths.length - 1]);
   }, [availableMonths, selectedMonth]);
 
+  // 통계 계산
   const stats = useMemo(() => {
     if (!selectedMonth || !monthlyDataMap[selectedMonth]) return null;
     const mData = monthlyDataMap[selectedMonth];
@@ -141,25 +142,32 @@ const App = () => {
       avg,
       students: mData.students.size,
       max: mData.scores.length ? Math.max(...mData.scores) : 0,
+      min: mData.scores.length ? Math.min(...mData.scores) : 0,
       excellence: mData.scores.length ? ((mData.scores.filter(s => s >= 90).length / mData.scores.length) * 100).toFixed(1) : 0,
       gradeDetails: Object.keys(gradeStats).sort().map(g => ({ grade: g, avg: gradeStats[g].count ? (gradeStats[g].total / gradeStats[g].count).toFixed(1) : 0 }))
     };
   }, [selectedMonth, monthlyDataMap, gradeHeader, scoreHeader]);
 
+  // 검색 필터링
   const filteredData = useMemo(() => {
     return data.filter(d => Object.values(d).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase())));
   }, [data, searchTerm]);
 
-  // 그래프 포인트 계산
+  // 차트 데이터 계산
   const lineChartPoints = useMemo(() => {
     if (availableMonths.length < 1) return [];
     const width = 800;
     const padding = 60;
     const stepX = (width - padding * 2) / Math.max(availableMonths.length - 1, 1);
+    const minScale = 50;
+    const maxScale = 100;
+    
     return availableMonths.map((m, i) => {
       const mData = monthlyDataMap[m];
       const avg = mData.scores.length ? (mData.scores.reduce((a,b)=>a+b,0) / mData.scores.length) : 0;
-      return { x: padding + i * stepX, y: 250 - (avg / 100 * 200), avg, month: m };
+      const clampedAvg = Math.max(minScale, Math.min(maxScale, avg));
+      const y = 250 - ((clampedAvg - minScale) / (maxScale - minScale) * 200);
+      return { x: padding + i * stepX, y, avg, month: m };
     });
   }, [availableMonths, monthlyDataMap]);
 
@@ -184,13 +192,19 @@ const App = () => {
       <div className="max-w-7xl mx-auto">
         <header className="flex flex-col lg:flex-row justify-between items-center mb-8 gap-6">
           <div className="flex items-center gap-4 w-full lg:w-auto">
-            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg"><GraduationCap className="text-white" size={32} /></div>
+            <div className="w-14 h-14 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg">
+              <GraduationCap className="text-white" size={32} />
+            </div>
             <div>
               <div className="flex flex-col sm:flex-row sm:items-baseline sm:gap-2">
                 <h1 className="text-2xl font-black text-slate-900">군위 몰입 수학</h1>
-                <span className="text-[10px] font-bold text-slate-400">Developed by Teach for Future (Sangjin Hong / Byungdu Kim)</span>
+                {/* 개발자 정보 - 영문 표기 및 미세 위치 조정 */}
+                <span className="text-[10px] font-bold text-slate-400 mt-1">Teach for Future Vibe Coding Lab - Sangjin Hong, Byungdu Kim</span>
               </div>
-              <div className="flex items-center gap-2 mt-0.5"><Clock size={12} className="text-indigo-400" /><span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{dataDate || '최신 데이터 불러오는 중...'}</span></div>
+              <div className="flex items-center gap-2 mt-0.5">
+                <Clock size={12} className="text-indigo-400" />
+                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">{dataDate || '최신 데이터 불러오는 중...'}</span>
+              </div>
             </div>
           </div>
           <div className="flex w-full lg:w-auto bg-white p-1.5 rounded-2xl border border-slate-100 shadow-sm">
@@ -202,7 +216,7 @@ const App = () => {
 
         {viewMode === 'analysis' ? (
           <div className="space-y-8 animate-in fade-in duration-500">
-            {/* 월 선택 */}
+            {/* 월 선택 필터 (모바일 가로 스크롤 가능) */}
             <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-hide">
               {availableMonths.map(m => (
                 <button key={m} onClick={() => setSelectedMonth(m)} className={`px-6 py-3 rounded-2xl text-sm font-black whitespace-nowrap transition-all ${selectedMonth === m ? 'bg-slate-900 text-white' : 'bg-white text-slate-400 border border-slate-100'}`}>
@@ -211,24 +225,50 @@ const App = () => {
               ))}
             </div>
 
-            {/* 통계 카드 */}
+            {/* 통계 카드 (모바일 2열 배치) */}
             <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
               <StatCard title="수강 인원" value={stats?.students} unit="명" icon={<Users size={20}/>} />
-              <StatCard title="월 평균" value={stats?.avg} unit="점" icon={<TrendingUp size={20}/>} />
-              <StatCard title="최고 점수" value={stats?.max} unit="점" icon={<Award size={20}/>} />
-              <StatCard title="우수 비율" value={stats?.excellence} unit="%" icon={<Percent size={20}/>} />
+              <StatCard 
+                title="월 평균" 
+                value={stats?.avg} 
+                unit="점" 
+                icon={<TrendingUp size={20}/>} 
+              />
+              <StatCard 
+                title="최고 / 최저"
+                value={`${stats?.max} / ${stats?.min}`}
+                unit="점" 
+                icon={<Award size={20}/>} 
+              />
+              <StatCard 
+                title="우수 비율" 
+                value={stats?.excellence} 
+                unit="%" 
+                icon={<Percent size={20}/>} 
+                subText="평균 90점 이상 기준"
+              />
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-              {/* 성적 추이 그래프 */}
+              {/* 차트 영역 */}
               <div className="lg:col-span-2 bg-white p-6 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-sm relative overflow-hidden">
-                <h3 className="font-black text-slate-800 text-lg mb-8 flex items-center gap-2"><TrendingUp className="text-indigo-500" size={20}/> 월별 평균 변화</h3>
+                <div className="flex justify-between items-center mb-8">
+                  <h3 className="font-black text-slate-800 text-lg flex items-center gap-2"><TrendingUp className="text-indigo-500" size={20}/> 월별 평균 변화</h3>
+                  <span className="text-[10px] font-bold bg-slate-100 px-3 py-1 rounded-full text-slate-500">Scale: 50-100</span>
+                </div>
                 <div className="h-[250px] w-full">
                   <svg viewBox="0 0 800 300" className="w-full h-full overflow-visible">
-                    <path d={lineChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')} fill="none" stroke="#6366f1" strokeWidth="5" strokeLinecap="round" strokeLinejoin="round" />
+                    <line x1="60" y1="250" x2="740" y2="250" stroke="#f1f5f9" strokeWidth="2" />
+                    <text x="40" y="255" className="fill-slate-300 text-[12px] font-bold">50</text>
+                    <line x1="60" y1="150" x2="740" y2="150" stroke="#f1f5f9" strokeWidth="2" />
+                    <text x="40" y="155" className="fill-slate-300 text-[12px] font-bold">75</text>
+                    <line x1="60" y1="50" x2="740" y2="50" stroke="#f1f5f9" strokeWidth="2" />
+                    <text x="40" y="55" className="fill-slate-300 text-[12px] font-bold">100</text>
+
+                    <path d={lineChartPoints.map((p, i) => `${i === 0 ? 'M' : 'L'} ${p.x} ${p.y}`).join(' ')} fill="none" stroke="#6366f1" strokeWidth="6" strokeLinecap="round" strokeLinejoin="round" />
                     {lineChartPoints.map((p, i) => (
                       <g key={i} className="cursor-pointer group" onClick={() => setSelectedMonth(p.month)}>
-                        <circle cx={p.x} cy={p.y} r={selectedMonth === p.month ? "10" : "6"} className={selectedMonth === p.month ? "fill-white stroke-indigo-600 stroke-[4]" : "fill-indigo-600 stroke-white stroke-[2]"} />
+                        <circle cx={p.x} cy={p.y} r={selectedMonth === p.month ? "12" : "7"} className={selectedMonth === p.month ? "fill-white stroke-indigo-600 stroke-[5]" : "fill-indigo-600 stroke-white stroke-[3]"} />
                         <text x={p.x} y="290" textAnchor="middle" className={`text-[18px] font-black ${selectedMonth === p.month ? 'fill-indigo-600' : 'fill-slate-300'}`}>{p.month}월</text>
                         {selectedMonth === p.month && (
                           <g><rect x={p.x-30} y={p.y-45} width="60" height="30" rx="10" fill="#1e293b"/><text x={p.x} y={p.y-25} textAnchor="middle" fill="white" className="text-[12px] font-bold">{p.avg.toFixed(1)}</text></g>
@@ -239,7 +279,7 @@ const App = () => {
                 </div>
               </div>
 
-              {/* 학년별 세부 정보 */}
+              {/* 학년별 요약 */}
               <div className="bg-white p-8 md:p-10 rounded-[2.5rem] border border-slate-200 shadow-sm">
                 <h3 className="font-black text-slate-800 text-lg mb-8 flex items-center gap-2"><BookOpen className="text-indigo-500" size={20}/> 학년별 평균</h3>
                 <div className="space-y-6">
@@ -259,14 +299,14 @@ const App = () => {
             </div>
           </div>
         ) : (
-          /* 리스트 뷰 */
           <div className="space-y-6 animate-in fade-in duration-500">
+            {/* 검색창 */}
             <div className="relative">
               <Search size={20} className="absolute left-6 top-1/2 -translate-y-1/2 text-slate-300" />
               <input type="text" placeholder="학생 이름이나 학년 검색..." className="w-full pl-16 pr-8 py-5 bg-white border border-slate-200 rounded-[1.5rem] text-sm font-black shadow-sm outline-none focus:ring-4 focus:ring-indigo-50 transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
             </div>
 
-            {/* PC 테이블 */}
+            {/* 데스크탑 테이블 (화면이 클 때만 보임) */}
             <div className="hidden md:block bg-white rounded-[2rem] border border-slate-200 overflow-hidden shadow-sm">
               <table className="w-full text-left">
                 <thead>
@@ -276,41 +316,50 @@ const App = () => {
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-50">
-                  {filteredData.map((row, i) => (
-                    <tr key={i} className="hover:bg-indigo-50/20 transition-all group">
-                      <td className="px-8 py-5 text-[14px] font-black text-slate-300 group-hover:text-indigo-300">{data.length - i}</td>
-                      {headers.map((h, j) => {
-                        const isScore = h.includes('성적') || h.includes('점수');
-                        const sVal = parseFloat(String(row[h]).replace(/[^0-9.]/g, ''));
-                        return (
-                          <td key={j} className="px-8 py-5 text-[14px] font-black">
-                            <span className={isScore ? (sVal >= 90 ? 'text-emerald-500' : 'text-indigo-600') : 'text-slate-600'}>{row[h]}</span>
-                          </td>
-                        );
-                      })}
-                    </tr>
-                  ))}
+                  {filteredData.map((row, i) => {
+                    const sVal = parseFloat(String(row[scoreHeader]).replace(/[^0-9.]/g, ''));
+                    const isAlert = !isNaN(sVal) && sVal <= 59;
+                    return (
+                      <tr key={i} className={`transition-all group ${isAlert ? 'bg-red-50/70 hover:bg-red-100/70' : 'hover:bg-indigo-50/20'}`}>
+                        <td className="px-8 py-5 text-[14px] font-black text-slate-300 group-hover:text-indigo-300">{data.length - i}</td>
+                        {headers.map((h, j) => {
+                          const isScore = h.includes('성적') || h.includes('점수');
+                          return (
+                            <td key={j} className="px-8 py-5 text-[14px] font-black">
+                              <span className={isScore ? (sVal <= 59 ? 'text-red-600' : sVal >= 90 ? 'text-emerald-500' : 'text-indigo-600') : 'text-slate-600'}>
+                                {row[h]}
+                              </span>
+                            </td>
+                          );
+                        })}
+                      </tr>
+                    );
+                  })}
                 </tbody>
               </table>
             </div>
 
-            {/* 모바일 카드 */}
+            {/* 모바일 전용 카드 리스트 (화면이 작을 때만 보임) */}
             <div className="md:hidden space-y-4 pb-10">
-              {filteredData.map((row, i) => (
-                <div key={i} className="bg-white p-6 rounded-[2rem] border border-slate-100 shadow-sm flex justify-between items-center transition-all active:scale-95">
-                  <div className="space-y-1">
-                    <p className="text-lg font-black text-slate-800">{row[nameHeader] || '미기입'}</p>
-                    <div className="flex items-center gap-2">
-                      <span className="text-[11px] px-2 py-0.5 bg-slate-50 text-slate-500 rounded-md font-bold">{row[gradeHeader]}</span>
-                      <span className="text-[11px] text-slate-400 font-bold">{row[monthInputHeader]}</span>
+              {filteredData.map((row, i) => {
+                const sVal = parseFloat(row[scoreHeader]);
+                const isAlert = !isNaN(sVal) && sVal <= 59;
+                return (
+                  <div key={i} className={`p-6 rounded-[2rem] border shadow-sm flex justify-between items-center transition-all active:scale-95 ${isAlert ? 'bg-red-50 border-red-100' : 'bg-white border-slate-100'}`}>
+                    <div className="space-y-1">
+                      <p className="text-lg font-black text-slate-800">{row[nameHeader] || '미기입'}</p>
+                      <div className="flex items-center gap-2">
+                        <span className="text-[11px] px-2 py-0.5 bg-slate-100 text-slate-500 rounded-md font-bold">{row[gradeHeader]}</span>
+                        <span className="text-[11px] text-slate-400 font-bold">{row[monthInputHeader]}</span>
+                      </div>
+                      <p className="text-[10px] text-slate-300 font-bold mt-1">{row[dateHeader]}</p>
                     </div>
-                    <p className="text-[10px] text-slate-300 font-bold mt-1">{row[dateHeader]}</p>
+                    <div className={`text-2xl font-black ${sVal <= 59 ? 'text-red-600' : sVal >= 90 ? 'text-emerald-500' : 'text-indigo-600'}`}>
+                      {row[scoreHeader]}<span className="text-xs ml-0.5">점</span>
+                    </div>
                   </div>
-                  <div className={`text-2xl font-black ${parseFloat(row[scoreHeader]) >= 90 ? 'text-emerald-500' : 'text-indigo-600'}`}>
-                    {row[scoreHeader]}<span className="text-xs ml-0.5">점</span>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
         )}
@@ -319,14 +368,16 @@ const App = () => {
   );
 };
 
-const StatCard = ({ title, value, unit, icon }) => (
+const StatCard = ({ title, value, unit, icon, subValue, subText }) => (
   <div className="bg-white p-6 md:p-8 rounded-[2rem] border border-slate-200 shadow-sm transition-all hover:shadow-xl hover:-translate-y-1">
     <div className="text-indigo-500 mb-4 bg-indigo-50 w-10 h-10 flex items-center justify-center rounded-xl">{icon}</div>
     <p className="text-[11px] font-black text-slate-400 uppercase mb-1 tracking-tight">{title}</p>
     <div className="flex items-baseline gap-1">
-      <span className="text-xl md:text-3xl font-black text-slate-900 tracking-tighter">{value || '--'}</span>
+      <span className="text-xl md:text-2xl font-black text-slate-900 tracking-tighter">{value || '--'}</span>
       <span className="text-xs font-bold text-slate-400">{unit}</span>
     </div>
+    {subValue && <p className="mt-2 text-[10px] font-bold text-slate-500 bg-slate-50 px-2 py-1 rounded-md inline-block uppercase tracking-tighter">{subValue}</p>}
+    {subText && <p className="mt-2 text-[10px] font-bold text-indigo-400 italic">{subText}</p>}
   </div>
 );
 
