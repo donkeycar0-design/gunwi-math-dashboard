@@ -2,30 +2,48 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { 
   Search, RefreshCw, Table, BarChart3, GraduationCap, 
   Clock, BookOpen, TrendingUp, Users, Award, 
-  Percent, Calendar
+  Percent, Calendar, Lock, Key
 } from 'lucide-react';
 import { 
   AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer 
 } from 'recharts';
 
 /**
- * 군위 몰입 수학 성적관리 대시보드
- * 1. 라이브러리 의존성: recharts, lucide-react (npm install recharts lucide-react)
- * 2. Y축 범위: 50 - 100 고정 (변화도 강조)
- * 3. 학년별/월별 인터렉티브 분석 기능 포함
+ * 군위 몰입 수학 성적관리 대시보드 (보안 강화 버전)
+ * 모든 로직이 포함된 단일 파일 버전입니다.
  */
 const App = () => {
+  // --- 보안 설정 ---
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [password, setPassword] = useState('');
+  const [passError, setPassError] = useState(false);
+  
+  // 👈 여기에 사용할 비밀번호를 입력하세요! (기본값: 1234)
+  const CORRECT_PASSWORD = "321!"; 
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+    if (password === CORRECT_PASSWORD) {
+      setIsAuthenticated(true);
+      setPassError(false);
+    } else {
+      setPassError(true);
+      setPassword('');
+    }
+  };
+
+  // --- 대시보드 상태 관리 ---
   const [data, setData] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [viewMode, setViewMode] = useState('analysis'); // 기본 분석 모드
+  const [viewMode, setViewMode] = useState('analysis');
   const [selectedMonth, setSelectedMonth] = useState(null);
   const [dataDate, setDataDate] = useState(null);
 
   const csvUrl = "https://docs.google.com/spreadsheets/d/e/2PACX-1vSa-LxLhjy5tVmwaj0kssahHZJUhaqe9LMiPc5TLsbTwrmlfpc0mWq8aYXVSqtIH8KXD102VlRCPfev/pub?output=csv";
 
-  // 날짜/월 추출 유틸리티
+  // --- 데이터 파싱 및 헬퍼 함수 ---
   const getMonthFromValue = (val) => {
     if (!val) return null;
     const s = String(val).trim();
@@ -100,20 +118,24 @@ const App = () => {
         setHeaders(headerRow);
         setData(dataRows);
       }
-    } catch (err) { console.error("데이터 로드 실패:", err); } 
+    } catch (err) { console.error("Fetch error:", err); } 
     finally { setLoading(false); }
   };
 
-  useEffect(() => { fetchData(); }, []);
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchData();
+    }
+  }, [isAuthenticated]);
 
-  // 헤더 매핑
+  // --- 헤더 매핑 ---
   const scoreHeader = useMemo(() => headers.find(h => h.includes('성적') || h.includes('점수')), [headers]);
   const gradeHeader = useMemo(() => headers.find(h => h.includes('학년')), [headers]);
   const nameHeader = useMemo(() => headers.find(h => h.includes('이름')), [headers]);
   const dateHeader = useMemo(() => headers.find(h => h.includes('타임스탬프') || h.includes('날짜')), [headers]);
   const monthInputHeader = useMemo(() => headers.find(h => h.includes('월 입력') || h.includes('월별')), [headers]);
 
-  // 월별 데이터 맵 생성
+  // --- 월별 데이터 계산 ---
   const monthlyDataMap = useMemo(() => {
     const months = {};
     data.forEach(item => {
@@ -131,7 +153,6 @@ const App = () => {
 
   const availableMonthsList = useMemo(() => Object.keys(monthlyDataMap).map(Number).sort((a, b) => a - b), [monthlyDataMap]);
 
-  // 차트 데이터 (평균 점수 계산)
   const chartData = useMemo(() => {
     return availableMonthsList.map(m => {
       const scores = monthlyDataMap[m].scores;
@@ -149,7 +170,6 @@ const App = () => {
     }
   }, [availableMonthsList, selectedMonth]);
 
-  // 선택된 월의 통계 정보
   const currentMonthStats = useMemo(() => {
     if (!selectedMonth || !monthlyDataMap[selectedMonth]) return null;
     const mData = monthlyDataMap[selectedMonth];
@@ -185,10 +205,46 @@ const App = () => {
     return data.filter(d => Object.values(d).some(v => String(v).toLowerCase().includes(searchTerm.toLowerCase())));
   }, [data, searchTerm]);
 
+  // --- 1. 로그인 화면 ---
+  if (!isAuthenticated) {
+    return (
+      <div className="min-h-screen bg-[#f8fafc] flex items-center justify-center p-6 font-sans">
+        <div className="max-w-md w-full bg-white rounded-[2.5rem] border border-slate-200 shadow-2xl p-10 text-center animate-in fade-in zoom-in duration-500">
+          <div className="w-20 h-20 bg-indigo-600 rounded-3xl flex items-center justify-center mx-auto mb-8 shadow-xl shadow-indigo-100">
+            <Lock className="text-white" size={36} />
+          </div>
+          <h1 className="text-2xl font-black text-slate-900 mb-2">군위 몰입 수학</h1>
+          <p className="text-slate-400 font-bold text-sm mb-8">데이터 보호를 위해 비밀번호를 입력해 주세요.</p>
+          
+          <form onSubmit={handleLogin} className="space-y-4">
+            <div className="relative">
+              <Key className={`absolute left-5 top-1/2 -translate-y-1/2 ${passError ? 'text-rose-400' : 'text-slate-300'}`} size={20} />
+              <input 
+                type="password" 
+                placeholder="비밀번호 입력"
+                className={`w-full pl-14 pr-6 py-4 bg-slate-50 border ${passError ? 'border-rose-200 ring-4 ring-rose-50' : 'border-slate-100'} rounded-2xl text-[16px] font-bold outline-none transition-all focus:bg-white focus:ring-4 focus:ring-indigo-50`}
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                autoFocus
+              />
+            </div>
+            {passError && <p className="text-rose-500 text-xs font-black animate-bounce">비밀번호가 일치하지 않습니다.</p>}
+            <button 
+              type="submit"
+              className="w-full bg-indigo-600 text-white py-4 rounded-2xl font-black text-[16px] shadow-lg shadow-indigo-100 hover:bg-indigo-700 transition-all active:scale-[0.98]"
+            >
+              입장하기
+            </button>
+          </form>
+        </div>
+      </div>
+    );
+  }
+
+  // --- 2. 메인 대시보드 화면 ---
   return (
     <div className="min-h-screen bg-[#f8fafc] p-4 md:p-8 font-sans text-slate-900">
       <div className="max-w-7xl mx-auto">
-        {/* 헤더 섹션 */}
         <header className="flex flex-col md:flex-row justify-between items-center mb-10 gap-6">
           <div className="flex items-center gap-5">
             <div className="w-16 h-16 bg-[#6366f1] rounded-2xl flex items-center justify-center shadow-2xl shadow-indigo-200">
@@ -223,7 +279,6 @@ const App = () => {
         </header>
 
         {viewMode === 'table' ? (
-          /* 리스트 뷰 */
           <div className="space-y-6 animate-in fade-in slide-in-from-bottom-6 duration-700">
             <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                <h2 className="text-2xl font-black text-slate-800 flex items-center gap-3">
@@ -233,7 +288,7 @@ const App = () => {
                 <Search size={20} className="absolute left-5 top-1/2 -translate-y-1/2 text-slate-300" />
                 <input 
                   type="text" 
-                  placeholder="학생 이름 또는 학년으로 검색..."
+                  placeholder="검색..."
                   className="w-full pl-14 pr-8 py-4 bg-white border border-slate-200 rounded-3xl text-[15px] font-bold shadow-sm focus:ring-4 focus:ring-indigo-50 outline-none transition-all"
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
@@ -276,9 +331,7 @@ const App = () => {
             </div>
           </div>
         ) : (
-          /* 분석 뷰 */
           <div className="space-y-8 animate-in fade-in slide-in-from-bottom-6 duration-700">
-             {/* 필터 바 */}
              <div className="bg-white p-3 rounded-3xl border border-slate-200 w-fit flex items-center shadow-lg shadow-slate-200/40">
               <div className="px-6 py-2 border-r border-slate-100 flex items-center gap-3 mr-2">
                 <Calendar size={20} className="text-indigo-500" />
@@ -297,7 +350,6 @@ const App = () => {
               </div>
             </div>
 
-            {/* 카드 섹션 */}
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6">
               <StatCard title={`${selectedMonth}월 수강생`} value={currentMonthStats?.students} unit="명" sub="학원 재원생 기준" icon={<Users />} />
               <StatCard title={`${selectedMonth}월 평균`} value={currentMonthStats?.avg} unit="점" sub="전체 학년 합산 데이터" icon={<TrendingUp />} />
@@ -305,7 +357,6 @@ const App = () => {
               <StatCard title="우수 학생 비율" value={currentMonthStats?.excellence} unit="%" sub="90점 이상 고득점자" icon={<Percent />} />
             </div>
 
-            {/* 메인 분석 영역 */}
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
                <div className="lg:col-span-2 bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm min-h-[480px]">
                  <div className="flex justify-between items-start mb-10">
@@ -317,9 +368,7 @@ const App = () => {
                       Y축 점수 범위를 <span className="text-indigo-500 underline decoration-indigo-200 underline-offset-4">50점 ~ 100점</span>으로 조정하여 변화량을 강조했습니다.
                     </p>
                    </div>
-                   <div className="px-4 py-1.5 bg-indigo-50 rounded-xl text-[11px] font-black text-indigo-500 uppercase tracking-widest">
-                     Dynamic Chart
-                   </div>
+                   <div className="px-4 py-1.5 bg-indigo-50 rounded-xl text-[11px] font-black text-indigo-500 uppercase tracking-widest">Dynamic Chart</div>
                  </div>
                  
                  <div className="h-[320px] w-full mt-4">
@@ -351,7 +400,6 @@ const App = () => {
                             contentStyle={{ borderRadius: '24px', border: 'none', boxShadow: '0 25px 50px -12px rgb(0 0 0 / 0.15)', padding: '20px' }}
                             itemStyle={{ fontWeight: 900, fontSize: '18px', color: '#6366f1' }}
                             labelStyle={{ fontWeight: 900, marginBottom: '8px', color: '#1e293b', fontSize: '14px' }}
-                            cursor={{ stroke: '#6366f1', strokeWidth: 2, strokeDasharray: '5 5' }}
                           />
                           <Area 
                             type="monotone" 
@@ -361,50 +409,39 @@ const App = () => {
                             fillOpacity={1} 
                             fill="url(#chartGradient)" 
                             animationDuration={2000}
-                            activeDot={{ r: 8, strokeWidth: 0, fill: '#6366f1' }}
                           />
                         </AreaChart>
                       </ResponsiveContainer>
                     ) : (
-                      <div className="h-full flex flex-col items-center justify-center text-slate-300 gap-4">
-                         <div className="w-12 h-12 bg-slate-50 rounded-full animate-pulse" />
-                         <span className="font-black text-sm">데이터 분석 중...</span>
-                      </div>
+                      <div className="h-full flex items-center justify-center text-slate-300 font-black">데이터 분석 중...</div>
                     )}
                  </div>
                </div>
 
-               {/* 학년별 상세 */}
                <div className="bg-white p-10 rounded-[3rem] border border-slate-200 shadow-sm">
                   <h3 className="font-black text-slate-800 text-xl mb-8 flex items-center gap-3">
                     <BookOpen size={26} className="text-indigo-500"/> 학년별 상세 (평균)
                   </h3>
                   <div className="space-y-7">
                     {currentMonthStats?.gradeDetails.length ? currentMonthStats.gradeDetails.map((g, idx) => (
-                      <div key={idx} className="group cursor-default">
+                      <div key={idx} className="group">
                         <div className="flex justify-between items-end mb-3">
                           <span className="text-[16px] font-black text-slate-700 flex items-center gap-3">
                             {g.grade} 
-                            <span className="text-[11px] px-3 py-1 bg-slate-50 text-slate-400 rounded-lg font-black group-hover:bg-indigo-50 group-hover:text-indigo-500 transition-all">{g.count}명 참여</span>
+                            <span className="text-[11px] px-3 py-1 bg-slate-50 text-slate-400 rounded-lg font-black group-hover:bg-indigo-50 transition-all">{g.count}명</span>
                           </span>
                           <span className="text-[18px] font-black text-indigo-500">{g.avg}점</span>
                         </div>
                         <div className="h-4 bg-slate-50 rounded-full overflow-hidden p-1">
                           <div 
-                            className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-1500 ease-out shadow-sm" 
+                            className="h-full bg-gradient-to-r from-indigo-400 to-indigo-600 rounded-full transition-all duration-1500" 
                             style={{ width: `${Math.max(0, (parseFloat(g.avg) - 50) * 2)}%` }} 
                           />
                         </div>
                       </div>
                     )) : (
-                      <div className="text-center py-20 text-slate-200 font-black italic">No Data Available</div>
+                      <div className="text-center py-20 text-slate-200 font-black italic">No Data</div>
                     )}
-                  </div>
-                  
-                  <div className="mt-12 p-6 bg-slate-50 rounded-3xl">
-                     <p className="text-[13px] font-bold text-slate-400 leading-relaxed">
-                       * 위 막대 그래프는 변별력을 위해 50점을 기점으로 비례하여 표시됩니다.
-                     </p>
                   </div>
                </div>
             </div>
@@ -417,18 +454,17 @@ const App = () => {
 
 const StatCard = ({ title, value, unit, sub, icon }) => {
   return (
-    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm group hover:shadow-2xl hover:-translate-y-1 transition-all duration-500">
-      <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-all duration-500 rotate-3 group-hover:rotate-0">
+    <div className="bg-white p-8 rounded-[2.5rem] border border-slate-200 shadow-sm group hover:shadow-2xl transition-all duration-500">
+      <div className="w-14 h-14 rounded-2xl bg-indigo-50 text-indigo-500 flex items-center justify-center mb-6 group-hover:bg-indigo-600 group-hover:text-white transition-all">
         {React.cloneElement(icon, { size: 28 })}
       </div>
       <p className="text-[13px] font-black text-slate-400 mb-2 uppercase tracking-tighter">{title}</p>
       <div className="flex items-baseline gap-1.5">
-        <span className="text-4xl font-black text-slate-900 tabular-nums">{value || '--'}</span>
+        <span className="text-4xl font-black text-slate-900">{value || '--'}</span>
         <span className="text-sm font-black text-slate-300">{unit}</span>
       </div>
-      <div className="mt-5 pt-5 border-t border-slate-50 flex items-center justify-between">
+      <div className="mt-5 pt-5 border-t border-slate-50">
         <p className="text-[11px] font-black text-slate-300 uppercase tracking-widest">{sub}</p>
-        <div className="w-1.5 h-1.5 rounded-full bg-indigo-200 animate-pulse" />
       </div>
     </div>
   );
