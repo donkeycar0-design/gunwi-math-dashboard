@@ -9,8 +9,7 @@ const App = () => {
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [password, setPassword] = useState('');
   const [passError, setPassError] = useState(false);
-  const CORRECT_PASSWORD = "321!"; // 👈 비밀번호
-
+  const CORRECT_PASSWORD = "321!"; // 👈
   const [data, setData] = useState([]);
   const [headers, setHeaders] = useState([]);
   const [loading, setLoading] = useState(true);
